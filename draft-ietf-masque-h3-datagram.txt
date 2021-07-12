@@ -5,11 +5,11 @@
 MASQUE                                                       D. Schinazi
 Internet-Draft                                                Google LLC
 Intended status: Standards Track                               L. Pardue
-Expires: 28 November 2021                                     Cloudflare
-                                                             27 May 2021
+Expires: 13 January 2022                                      Cloudflare
+                                                            12 July 2021
 
 
-                    Using QUIC Datagrams with HTTP/3
+                       Using Datagrams with HTTP
                   draft-ietf-masque-h3-datagram-latest
 
 Abstract
@@ -22,6 +22,8 @@ Abstract
    DATAGRAM frames when the application protocol running over QUIC is
    HTTP/3.  It associates datagrams with client-initiated bidirectional
    streams and defines an optional additional demultiplexing layer.
+   Additionally, this document defines how to convey datagrams over
+   prior versions of HTTP.
 
    Discussion of this work is encouraged to happen on the MASQUE IETF
    mailing list (masque@ietf.org (mailto:masque@ietf.org)) or on the
@@ -43,7 +45,7 @@ Status of This Memo
    time.  It is inappropriate to use Internet-Drafts as reference
    material or to cite them other than as "work in progress."
 
-   This Internet-Draft will expire on 28 November 2021.
+   This Internet-Draft will expire on 13 January 2022.
 
 Copyright Notice
 
@@ -81,7 +83,7 @@ Table of Contents
    9.  Security Considerations
    10. IANA Considerations
      10.1.  HTTP/3 CAPSULE Frame
-     10.2.  HTTP SETTINGS Parameter
+     10.2.  HTTP/3 SETTINGS Parameter
      10.3.  Capsule Types
      10.4.  Context Extension Types
      10.5.  Context Close Codes
@@ -104,7 +106,8 @@ Table of Contents
    QUIC DATAGRAM frames when the application protocol running over QUIC
    is HTTP/3 [H3].  It associates datagrams with client-initiated
    bidirectional streams and defines an optional additional
-   demultiplexing layer.
+   demultiplexing layer.  Additionally, this document defines how to
+   convey datagrams over prior versions of HTTP.
 
    Discussion of this work is encouraged to happen on the MASQUE IETF
    mailing list (masque@ietf.org (mailto:masque@ietf.org)) or on the
@@ -121,14 +124,20 @@ Table of Contents
 
 2.  Multiplexing
 
-   In order to allow multiple exchanges of datagrams to coexist on a
-   given QUIC connection, HTTP datagrams contain two layers of
-   multiplexing.  First, the QUIC DATAGRAM frame payload starts with an
-   encoded stream identifier that associates the datagram with a given
-   QUIC stream.  Second, datagrams optionally carry a context identifier
-   (see Section 2.1) that allows multiplexing multiple datagram contexts
-   related to a given HTTP request.  Conceptually, the first layer of
-   multiplexing is per-hop, while the second is end-to-end.
+   When running over HTTP/3, multiple exchanges of datagrams need the
+   ability to coexist on a given QUIC connection.  To allow this, HTTP
+   datagrams contain two layers of multiplexing.  First, the QUIC
+   DATAGRAM frame payload starts with an encoded stream identifier that
+   associates the datagram with a given QUIC stream.  Second, datagrams
+   optionally carry a context identifier (see Section 2.1) that allows
+   multiplexing multiple datagram contexts related to a given HTTP
+   request.  Conceptually, the first layer of multiplexing is per-hop,
+   while the second is end-to-end.
+
+   When running over HTTP/2, the first level of demultiplexing is
+   provided by the HTTP/2 framing layer.  When running over HTTP/1,
+   requests are strictly serialized in the connection, therefore the
+   first layer of demultiplexing is not needed.
 
 2.1.  Datagram Contexts
 
@@ -153,16 +162,15 @@ Table of Contents
 
 2.2.  Context ID Allocation
 
-   Implementations of HTTP/3 that support the DATAGRAM extension MUST
-   provide a context ID allocation service.  That service will allow
-   applications co-located with HTTP/3 to request a unique context ID
-   that they can subsequently use for their own purposes.  The HTTP/3
-   implementation will then parse the context ID of incoming DATAGRAM
-   frames and use it to deliver the frame to the appropriate application
-   context.
+   Implementations of HTTP Datagrams MUST provide a context ID
+   allocation service.  That service will allow applications co-located
+   with HTTP to request a unique context ID that they can subsequently
+   use for their own purposes.  The HTTP implementation will then parse
+   the context ID of incoming HTTP Datagrams and use it to deliver the
+   frame to the appropriate application context.
 
    Even-numbered context IDs are client-initiated, while odd-numbered
-   context IDs are server-initiated.  This means that an HTTP/3 client
+   context IDs are server-initiated.  This means that an HTTP client
    implementation of the context ID allocation service MUST only provide
    even-numbered IDs, while a server implementation MUST only provide
    odd-numbered IDs.  Note that, once allocated, any context ID can be
@@ -181,7 +189,7 @@ Table of Contents
    HTTP/3 Datagram {
      Quarter Stream ID (i),
      [Context ID (i)],
-     HTTP/3 Datagram Payload (..),
+     HTTP Datagram Payload (..),
    }
 
                       Figure 1: HTTP/3 DATAGRAM Format
@@ -205,9 +213,9 @@ Table of Contents
       datagram silently or buffer it temporarily while awaiting the
       registration capsule.
 
-   HTTP/3 Datagram Payload:  The payload of the datagram, whose
-      semantics are defined by individual applications.  Note that this
-      field can be empty.
+   HTTP Datagram Payload:  The payload of the datagram, whose semantics
+      are defined by individual applications.  Note that this field can
+      be empty.
 
    Intermediaries parse the Quarter Stream ID field in order to
    associate the QUIC DATAGRAM frame with a stream.  If an intermediary
@@ -480,7 +488,7 @@ Table of Contents
 
    DATAGRAM Capsule {
      [Context ID (i)],
-     HTTP/3 Datagram Payload (..),
+     HTTP Datagram Payload (..),
    }
 
                      Figure 6: DATAGRAM Capsule Format
@@ -497,28 +505,28 @@ Table of Contents
       datagram silently or buffer it temporarily while awaiting the
       registration capsule.
 
-   HTTP/3 Datagram Payload:  The payload of the datagram, whose
-      semantics are defined by individual applications.  Note that this
-      field can be empty.
+   HTTP Datagram Payload:  The payload of the datagram, whose semantics
+      are defined by individual applications.  Note that this field can
+      be empty.
 
    Datagrams sent using the DATAGRAM Capsule have the exact same
    semantics as datagrams sent in QUIC DATAGRAM frames.  In particular,
-   the restrictions on when it is allowed to send an HTTP/3 datagram and
-   how to process them from Section 3 also apply to HTTP/3 datagrams
-   sent and received using the DATAGRAM capsule.
+   the restrictions on when it is allowed to send an HTTP Datagram and
+   how to process them from Section 3 also apply to HTTP Datagrams sent
+   and received using the DATAGRAM capsule.
 
    The DATAGRAM Capsule is transparent to intermediaries, meaning that
    intermediaries MAY parse it and send DATAGRAM Capsules that they did
-   not receive.  This allows an intermediary to reencode HTTP/3
-   Datagrams as it forwards them: in other words, an intermediary MAY
-   send a DATAGRAM Capsule to forward an HTTP/3 Datagram which was
-   received in a QUIC DATAGRAM frame, and vice versa.
+   not receive.  This allows an intermediary to reencode HTTP Datagrams
+   as it forwards them: in other words, an intermediary MAY send a
+   DATAGRAM Capsule to forward an HTTP Datagram which was received in a
+   QUIC DATAGRAM frame, and vice versa.
 
    Note that while DATAGRAM capsules are sent on a stream,
-   intermediaries can reencode HTTP/3 datagrams into QUIC DATAGRAM
-   frames over the next hop, and those could be dropped.  Because of
-   this, applications have to always consider HTTP/3 datagrams to be
-   unreliable, even if they were initially sent in a capsule.
+   intermediaries can reencode HTTP Datagrams into QUIC DATAGRAM frames
+   over the next hop, and those could be dropped.  Because of this,
+   applications have to always consider HTTP Datagrams to be unreliable,
+   even if they were initially sent in a capsule.
 
 5.  Context Extensibility
 
@@ -622,8 +630,8 @@ Table of Contents
    We can provide DATAGRAM support in HTTP/1.x by defining its data
    stream format to a sequence of length-value capsules.
 
-   TODO: Refactor this document into "HTTP Datagrams" with definitions
-   for HTTP/1.x, HTTP/2, and HTTP/3.
+   TODO: Refactor this document and add definitions for HTTP/1.x and
+   HTTP/2.
 
 9.  Security Considerations
 
@@ -647,7 +655,7 @@ Table of Contents
      |  CAPSULE   | 0xffcab5 | This Document |
      +------------+----------+---------------+
 
-10.2.  HTTP SETTINGS Parameter
+10.2.  HTTP/3 SETTINGS Parameter
 
    This document will request IANA to register the following entry in
    the "HTTP/3 Settings" registry:
@@ -660,7 +668,7 @@ Table of Contents
 
 10.3.  Capsule Types
 
-   This document establishes a registry for HTTP/3 capsule type codes.
+   This document establishes a registry for HTTP capsule type codes.
    The "HTTP Capsule Types" registry governs a 62-bit space.
    Registrations in this registry MUST include the following fields:
 
@@ -700,7 +708,7 @@ Table of Contents
 
 10.4.  Context Extension Types
 
-   This document establishes a registry for HTTP/3 datagram context
+   This document establishes a registry for HTTP datagram context
    extension type codes.  The "HTTP Context Extension Types" registry
    governs a 62-bit space.  Registrations in this registry MUST include
    the following fields:
@@ -738,8 +746,8 @@ Table of Contents
 
 10.5.  Context Close Codes
 
-   This document establishes a registry for HTTP/3 context extension
-   type codes.  The "HTTP Context Close Codes" registry governs a 62-bit
+   This document establishes a registry for HTTP context extension type
+   codes.  The "HTTP Context Close Codes" registry governs a 62-bit
    space.  Registrations in this registry MUST include the following
    fields:
 
@@ -779,15 +787,15 @@ Table of Contents
 
    [DGRAM]    Pauly, T., Kinnear, E., and D. Schinazi, "An Unreliable
               Datagram Extension to QUIC", Work in Progress, Internet-
-              Draft, draft-ietf-quic-datagram-02, 16 February 2021,
+              Draft, draft-ietf-quic-datagram-03, 12 July 2021,
               <https://datatracker.ietf.org/doc/html/draft-ietf-quic-
-              datagram-02.txt>.
+              datagram-03>.
 
    [H3]       Bishop, M., "Hypertext Transfer Protocol Version 3
               (HTTP/3)", Work in Progress, Internet-Draft, draft-ietf-
               quic-http-34, 2 February 2021,
               <https://datatracker.ietf.org/doc/html/draft-ietf-quic-
-              http-34.txt>.
+              http-34>.
 
    [IANA-POLICY]
               Cotton, M., Leiba, B., and T. Narten, "Guidelines for
@@ -799,7 +807,7 @@ Table of Contents
               and Secure Transport", Work in Progress, Internet-Draft,
               draft-ietf-quic-transport-34, 14 January 2021,
               <https://datatracker.ietf.org/doc/html/draft-ietf-quic-
-              transport-34.txt>.
+              transport-34>.
 
    [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
               Requirement Levels", BCP 14, RFC 2119,

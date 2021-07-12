@@ -135,9 +135,9 @@ Table of Contents
    while the second is end-to-end.
 
    When running over HTTP/2, the first level of demultiplexing is
-   provided by the HTTP/2 framing layer.  When running over HTTP/1, only
-   one request can exist on an HTTP connection at a given time,
-   therefore the first layer of demultiplexing is not needed.
+   provided by the HTTP/2 framing layer.  When running over HTTP/1,
+   requests are strictly serialized in the connection, therefore the
+   first layer of demultiplexing is not needed.
 
 2.1.  Datagram Contexts
 

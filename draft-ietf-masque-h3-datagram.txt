@@ -5,8 +5,8 @@
 MASQUE                                                       D. Schinazi
 Internet-Draft                                                Google LLC
 Intended status: Standards Track                               L. Pardue
-Expires: 13 January 2022                                      Cloudflare
-                                                            12 July 2021
+Expires: 15 January 2022                                      Cloudflare
+                                                            14 July 2021
 
 
                        Using Datagrams with HTTP
@@ -51,7 +51,7 @@ Status of This Memo
    time.  It is inappropriate to use Internet-Drafts as reference
    material or to cite them other than as "work in progress."
 
-   This Internet-Draft will expire on 13 January 2022.
+   This Internet-Draft will expire on 15 January 2022.
 
 Copyright Notice
 
@@ -84,6 +84,7 @@ Table of Contents
      5.1.  The CLOSE_CODE Context Extension Type
      5.2.  The DETAILS Context Extension Type
    6.  The H3_DATAGRAM HTTP/3 SETTINGS Parameter
+     6.1.  Note About Draft Versions
    7.  Prioritization
    8.  HTTP/1.x and HTTP/2 Support
    9.  Security Considerations
@@ -615,6 +616,20 @@ Table of Contents
    than or equal to the stored value; if not, the client MUST terminate
    the connection with error H3_SETTINGS_ERROR.  In all cases, the
    maximum permitted value of the H3_DATAGRAM SETTINGS parameter is 1.
+
+6.1.  Note About Draft Versions
+
+   [[RFC editor: please remove this section before publication.]]
+
+   Some revisions of this draft specification use a different value for
+   the H3_DATAGRAM Settings Parameter.  This allows new draft revisions
+   to make incompatible changes.  Multiple draft versions MAY be
+   supported by either endpoint in a connection.  Such endpoints MUST
+   send multiple values for H3_DATAGRAM.  Once an endpoint has sent and
+   received SETTINGS, it MUST compute the intersection of the values it
+   has sent and received, and then it MUST select and use the most
+   recent draft version from the intersection set.  This ensures that
+   both endpoints negotiate the same draft version.
 
 7.  Prioritization
 

@@ -1,6 +1,6 @@
 {
   "magic": "E!vIA5L86J2I",
-  "timestamp": "2021-07-13T01:03:33.318470+00:00",
+  "timestamp": "2021-07-15T01:03:12.562964+00:00",
   "repo": "ietf-wg-masque/draft-ietf-masque-h3-datagram",
   "labels": [
     {
@@ -1570,6 +1570,144 @@
           "body": "Unless you encrypt capsules end-to-end, I don't think any text in the spec can in practice prevent intermediaries from inspecting and modifying capsules.  You can send something like GREASE capsules, though.",
           "createdAt": "2021-05-13T14:02:45Z",
           "updatedAt": "2021-05-13T14:02:45Z"
+        }
+      ]
+    },
+    {
+      "number": 65,
+      "id": "MDU6SXNzdWU5NDMzMDk1NzE=",
+      "title": "MTU handling",
+      "url": "https://github.com/ietf-wg-masque/draft-ietf-masque-h3-datagram/issues/65",
+      "state": "OPEN",
+      "author": "gloinul",
+      "authorAssociation": "NONE",
+      "assignees": [],
+      "labels": [],
+      "body": "This has been sent to the MASQUE WG mailing list in hopes to get some discussion there. However, I want an issue that tracks this: \r\n\r\nIn the work of writing up our Connect-IP proposal (https://datatracker.ietf.org/doc/draft-kuehlewind-masque-connect-ip/) we looked into how to deal with MTU issues effectively. Our conclusion was that this is going to be a general problem for any user of HTTP Datagrams. Thus, we like to propose that MTU handling is done within HTTP datagram. \r\n\r\nThis email will start explaining what we see as requirements for a MTU signaling solution for HTTP datagram, then propose a potential solution. \r\n\r\n\r\nLets start with a figure that provides us with a framework to discuss the requirements:\r\n\r\n```\r\n+--------+ Path#1A +--------+        +-------+        +--------+\r\n|Client A|<------->| HTTP   | Path#2 | MASQUE| Path#3 |        |\r\n+--------+         | Inter- |<------>| Server|<------>| Target |\r\n+--------+ Path#1B | mediary|        |(proxy)|        |        |\r\n|Client B|<------->|        |        |       |        |        |\r\n+--------+         +--------+        +-------+        +--------+\r\n```\r\n\r\n\r\nI think what makes this a bit more complex is the fact that we need to consider HTTP intermediaries, such as a front end load balancer that terminates a first QUIC and HTTP/3 connection between the client and that intermediary. From that intermediary another HTTP connection is used towards the HTTP server that consumes and produces the HTTP datagrams, and in the case of CONNECT-UDP and CONNECT-IP it also have a third path towards the target to consider. This figure includes two clients to remind us to consider that the HTTP intermediary may actually aggregate the HTTP request and response and HTTP datagram over one HTTP/2 or HTTP/3 connection over Path #2. In the case of MTU this complicates things more as the proxy cant assume that all HTTP requests have the same MTU for its datagrams on a HTTP/3 connection. And the Intermediary will be the entity that have direct knowledge of the client facing as well as the next hop MTU over the HTTP connections that may all differ in MTU. \r\n\r\nWe also have to consider the fact that the underlying transport connection may at any time be subject to a IP MTU change due to route change for the path between the nodes. In addition if one have enabled PMTUD in TCP or QUIC a larger MTU on the individual path could be made available and in some case desirable to use. Thus, we need to consider dynamic changes during the HTTP connections life time and each HTTP request response pairs usage of HTTP datagram. \r\n\r\nSo when using HTTP/3 datagram there are a strict MTU limit on the individual datagrams for it to be possible to be sent as QUIC datagrams, and not being forced to be encapsulated as CAPSULES over the reliable stream. This is clearly a possibility but results in that the datagrams are sent reliable and in order for each HTTP request, i.e. Connect-UDP or CONNECT-IP request. Also in case some end-to-end payloads fit in HTTP datagrams and others don\u2019t there is potential for reordering among the payloads. Thus, to avoid this the client and the proxy needs to determine what the lowest currently supported HTTP datagram size on the path. \r\n\r\nFor each QUIC connection the end point will know what the initial MTU value is for this path when the HTTP/3 connection has been successful completed. However, that knowledge will not be available if one attempt to construct and send the HTTP request prior to connection establishment has concluded.\r\n\r\nSo the requirements we see for an MTU handling solution for HTTP Datagrams are the following.\r\n\r\n1)\tHop-by-hop signaling across the HTTP entities of the lowest MTU of any sub-path\r\n2)\tNeeds to be associated to a particular HTTP request or end-to-end path to support aggregation by HTTP intermediaries\r\n3)\tEndpoints needs to be able to initiate update of the MTU value upon detection of any changes during HTTP Datagram streams lifetime.\r\n4)\tHTTP Intermediaries needs to be able to initiate updates of the MTU value upon detecting MTU changes from the individual HTTP connections.\r\n\r\nSolution proposal\r\n==============\r\n\r\nA new HTTP Datagram Capsule is defined for MTU value exchange. This one is intended for the HTTP intermediary that needs to interpret, update or initiate sending of it. Thus, it needs to be a fixed registered type so it can be easily processed. It can also be exchanged in parallel to the Register_Datagram_* capsules as at that point the underlying HTTP connection is established and initial HTTP Datagram values will be known. A capsule will also travel all the way to the end. And an intermediary can initiate one in each direction for request paths. The only downside I see of this is that one is required per open stream when MTU changes occurs. Maybe someone have an idea of how to handle signaling when aggregating multiple endpoints streams onto one HTTP/3 connection. \r\n\r\nTo make it more efficient, rather than sending one MTU capsule per stream, an MTU capsule could list all streams it is applicable to. That way the number of MTU capsules would be no more than the number of end-to-end paths actually used. \r\n\r\n",
+      "createdAt": "2021-07-13T12:38:22Z",
+      "updatedAt": "2021-07-14T15:25:02Z",
+      "closedAt": null,
+      "comments": [
+        {
+          "author": "DavidSchinazi",
+          "authorAssociation": "COLLABORATOR",
+          "body": "Hi @gloinul thanks for proposing this work item. From reading your problem statement and proposal, this will require non-trivial amounts of complexity. Resolving that will take time. I don't see a reason to delay the HTTP Datagrams draft because of this, so I'd suggest building this as an extension to HTTP Datagrams. I think this would even be a great way to test out our new extensibility mechanism! Can you write this up as a separate draft please?",
+          "createdAt": "2021-07-13T16:24:24Z",
+          "updatedAt": "2021-07-13T16:24:24Z"
+        },
+        {
+          "author": "gloinul",
+          "authorAssociation": "NONE",
+          "body": "Yes, it is non-trivial. However, I think we need to settle if we have a day one need for this mechanism to ensure that CONNECT-UDP actually can work properly and handle QUIC in QUIC when the outer tunnel uses minimal QUIC packets. Similarly we have a need for CONNECT-IP to handle IPv6 minimal packet size. So I think we need to discuss if this needs to be solved.\r\n\r\nBut, yes I am willing to write this up in spec form, but I was more thinking of a PR to the HTTP-DATAGRAM draft.",
+          "createdAt": "2021-07-14T07:54:10Z",
+          "updatedAt": "2021-07-14T07:54:10Z"
+        },
+        {
+          "author": "DavidSchinazi",
+          "authorAssociation": "COLLABORATOR",
+          "body": "I don't see a day one need here that isn't addressed by [Ben's proposal](https://mailarchive.ietf.org/arch/msg/masque/7KJiS6bznHSlCqz1q8HTXoAk0to/). Given the current text, CONNECT-UDP (and -IP) endpoints can detect datagram blackholing and switch to capsules.",
+          "createdAt": "2021-07-14T15:25:02Z",
+          "updatedAt": "2021-07-14T15:25:02Z"
+        }
+      ]
+    },
+    {
+      "number": 66,
+      "id": "MDU6SXNzdWU5NDM1Mjc1OTc=",
+      "title": "How to actually use the Context ID registrations mechanism",
+      "url": "https://github.com/ietf-wg-masque/draft-ietf-masque-h3-datagram/issues/66",
+      "state": "OPEN",
+      "author": "gloinul",
+      "authorAssociation": "NONE",
+      "assignees": [],
+      "labels": [],
+      "body": "Sent to the WG mailing list. \r\n\r\nI and my co-authors on https://datatracker.ietf.org/doc/draft-kuehlewind-masque-connect-ip/ have had some discussion around how one actually can and should be using the context-ID registration mechanism. This as we are actually need it to realize some of the functionality in our CONNECT-IP solution. \r\n\r\nWe have found several ways that appear to practically work from an CONNECT-IP application perspective. \r\n\r\nA)\tStatically define that in the context of CONNECT-IP the application will map certain formats to certain ContextID, and simply send registrations without any extension headers. \r\nB)\tDefine a Context Extension that is intended to provide format identifiers for the CONNECT-IP method different formats. \r\nC)\tUse values or parameters in HTTP headers related to the format to carry the identifiers.\r\nD)\tCombine A and B, so that we have a set of initially statically defined mappings, and then use Context Extension for any future extensions. \r\n\r\nIn our discussion we see that C appears to have some potential for failure modes if an HTTP intermediary does things with the headers. \r\n\r\nA) is very straight forward for an application initially but can run into trouble when needing to be extended but HTTP level negotiation of the general functionality should resolve those. \r\n\r\nB) appears to have some overhead from an application perspective as each application needs to define its own Context Extension to carry identifiers. Is it really intended that each HTTP application that needs to convey some identifier for its Context ID format to carry across the HTTP Datagram capsule. Would there be a point in defining a Context Extension that carries format identifier for what one like to use this context ID. \r\n\r\nD) appears to be simple initially, but leads to the extension mechanism having code paths that would not be exercised by default\r\n\r\nSo this was basically to start a discussion to see if we can get a bit more clearer guidance towards the HTTP application writers that will attempt to use HTTP Datagram on how to actually use Context IDs. I noted that the Connect-UDP method was no help as example yet.\r\n\r\n",
+      "createdAt": "2021-07-13T15:08:52Z",
+      "updatedAt": "2021-07-14T15:57:14Z",
+      "closedAt": null,
+      "comments": [
+        {
+          "author": "DavidSchinazi",
+          "authorAssociation": "COLLABORATOR",
+          "body": "Thanks for writing this up @gloinul. Using your nomenclature, the draft is currently written with the intent of using (B). That allows maximal extensibility while ensuring that the extension codepath is well used. The overhead of registering a 62bit integer seems negligible to me - since each application needs to define its payload format somewhere, defining its negotiation format and registering an integer alongside seems easy. Can you think of any use cases that are not well served by (B)?",
+          "createdAt": "2021-07-13T16:12:02Z",
+          "updatedAt": "2021-07-13T16:12:02Z"
+        },
+        {
+          "author": "gloinul",
+          "authorAssociation": "NONE",
+          "body": "Thanks for clarifying your thoughts on what you had intended. And I don't think there are any question if will serve the application. However, as there where no actually defined usage yet we where a bit uncertain of the intention here. \r\n\r\nI would note that each standardized application registering its own extension, will cause another IANA registry for the format values. But it clearly have a benefit from being a forensic perspective, as each application will be ID by its extension type, and then its value. \r\n",
+          "createdAt": "2021-07-14T08:00:24Z",
+          "updatedAt": "2021-07-14T08:00:24Z"
+        },
+        {
+          "author": "DavidSchinazi",
+          "authorAssociation": "COLLABORATOR",
+          "body": "Can you clarify your note? The document currently sets up the \"HTTP Context Extension Types\" IANA registry. What other IANA registry did you have in mind? Formats don't need a registry. To make an analogy, we have an IANA registry for UDP port numbers but no IANA registry for the format of UDP payloads, as those are defined by specifications not registries.",
+          "createdAt": "2021-07-14T15:57:14Z",
+          "updatedAt": "2021-07-14T15:57:14Z"
+        }
+      ]
+    },
+    {
+      "number": 67,
+      "id": "MDU6SXNzdWU5NDM1Mjk4Mjk=",
+      "title": "Are there any need for multiple Context ID registration mechanism?",
+      "url": "https://github.com/ietf-wg-masque/draft-ietf-masque-h3-datagram/issues/67",
+      "state": "OPEN",
+      "author": "gloinul",
+      "authorAssociation": "NONE",
+      "assignees": [],
+      "labels": [],
+      "body": "It appears that the current defined registration method is great when one have three formats and need three different context ID for the three different formats. It is not suitable if one end up in any combinatorial cases, like formats that combine different modules where one may suddenly have 128 potential different context IDs. Pre-registering all of them appears to create a significant overhead. We had some thoughts of actually carrying the DSCP + ECN values for an IP packet payload in the Context ID. That could require up to 256 Context IDs. And registering each value individually could be done, but ends up in a large number of registrations, likely with a Context Extension TLV that consumes additionally overhead. \r\n\r\nSo is there a need for mass registration of context IDs?",
+      "createdAt": "2021-07-13T15:10:29Z",
+      "updatedAt": "2021-07-14T15:52:33Z",
+      "closedAt": null,
+      "comments": [
+        {
+          "author": "DavidSchinazi",
+          "authorAssociation": "COLLABORATOR",
+          "body": "If you need to carry 8 bits, then I think the simplest solution is to register a single context whose format contains those 8 bits at the start of the`HTTP Datagram Payload`? Since the context ID is encoded as a variable-length integer, these two encodings have the same amount of wire overhead. Can you think of any use cases that would be better solved by \"mass registration\"?",
+          "createdAt": "2021-07-13T16:01:07Z",
+          "updatedAt": "2021-07-13T16:01:07Z"
+        },
+        {
+          "author": "gloinul",
+          "authorAssociation": "NONE",
+          "body": "The issue I saw was that if you need lets say the equivalent of 4 bits, then you can either register 16 contexts for a Datagram overhead of 1 bytes if you had no prior need for context IDs. If you want to go from one format to two and also are adding a front byte then you consume 2 bytes, one for the context ID you didn't need before, and one byte to carry the actual value. With the context ID's variable encoding and only half of the values can be initiated by the endpoint the limit for keeping the context ID within one byte is anyway no more than 5 bits worth of values anyway. \r\n\r\nHowever, I think the later is the cleaner solution and likely the one we should go with. For our Connect-IP proposal it looks like we will have context IDs anyway for our flow forwarding mode. \r\n\r\nBut this was a question to ask openly as we had this thoughts and maybe others have even stronger aversion for overhead to carry a couple of bits and thus may want to encoded it in the context ID. But if not anyone else has strong need, then I don't think we really need any mass registration mechanism.",
+          "createdAt": "2021-07-14T07:48:43Z",
+          "updatedAt": "2021-07-14T07:48:43Z"
+        },
+        {
+          "author": "DavidSchinazi",
+          "authorAssociation": "COLLABORATOR",
+          "body": "Thanks, that makes sense. Let's leave this open for some time to see if anyone has use cases or other thoughts.",
+          "createdAt": "2021-07-14T15:52:33Z",
+          "updatedAt": "2021-07-14T15:52:33Z"
+        }
+      ]
+    },
+    {
+      "number": 68,
+      "id": "MDU6SXNzdWU5NDM5NzQxNDM=",
+      "title": "Merge REGISTER_DATAGRAM_CONTEXT and REGISTER_DATAGRAM_NO_CONTEXT capsules",
+      "url": "https://github.com/ietf-wg-masque/draft-ietf-masque-h3-datagram/issues/68",
+      "state": "OPEN",
+      "author": "vasilvv",
+      "authorAssociation": "NONE",
+      "assignees": [],
+      "labels": [],
+      "body": "There are two possible ways to encode REGISTER_DATAGRAM capsule: using two different capsules (current variant), or using a single capsule with a field indicating whether the context is present.  While those two are largely isomorphic, I feel like the latter would help us avoid situations where libraries or intermediaries only support one but not the other.",
+      "createdAt": "2021-07-14T02:26:19Z",
+      "updatedAt": "2021-07-14T02:56:34Z",
+      "closedAt": null,
+      "comments": [
+        {
+          "author": "LPardue",
+          "authorAssociation": "COLLABORATOR",
+          "body": "To address one point, I had the expectation that the capsule types in this document would be base level and all implementations would support them. Maybe we have different expectations. \r\n\r\nTo address the more technical point, what would a merged capsule look like? In H3, we don't have a flags section for frames to signals similar but unique variants. The HTTP/3 PRIORITY_UPDATE frame in Extensible Priorities started by encoding optionality as a 1 byte field in the frame. Due to feed back we switched to using different frame code points, a bit like how QUIC DATAGRAMS also work. Since we already have two frame code points for context registration, it doesn't seem like we are too far off how other parts of the stack already do things.",
+          "createdAt": "2021-07-14T02:55:14Z",
+          "updatedAt": "2021-07-14T02:56:34Z"
         }
       ]
     }
@@ -4737,6 +4875,402 @@
           "body": "thanks for this, LGTM modulo the one nit",
           "createdAt": "2021-07-12T21:24:54Z",
           "updatedAt": "2021-07-12T21:24:54Z",
+          "comments": []
+        }
+      ]
+    },
+    {
+      "number": 69,
+      "id": "MDExOlB1bGxSZXF1ZXN0NjkwMDA2OTg0",
+      "title": "Do not convert datagrams to capsules",
+      "url": "https://github.com/ietf-wg-masque/draft-ietf-masque-h3-datagram/pull/69",
+      "state": "OPEN",
+      "author": "DavidSchinazi",
+      "authorAssociation": "COLLABORATOR",
+      "assignees": [],
+      "labels": [],
+      "body": "Credit to @bemasc for the proposal on the [mailing list](https://mailarchive.ietf.org/arch/msg/masque/7KJiS6bznHSlCqz1q8HTXoAk0to/).\r\n\r\nCloses #65.",
+      "createdAt": "2021-07-14T15:19:47Z",
+      "updatedAt": "2021-07-15T00:47:25Z",
+      "baseRepository": "ietf-wg-masque/draft-ietf-masque-h3-datagram",
+      "baseRefName": "main",
+      "baseRefOid": "bfd4d8fea782e7ec879c07b29635233ee9ff1faa",
+      "headRepository": "ietf-wg-masque/draft-ietf-masque-h3-datagram",
+      "headRefName": "mtu",
+      "headRefOid": "77d6ec4a30cc9854adf398bcdd481345780eeb78",
+      "closedAt": null,
+      "mergedAt": null,
+      "mergedBy": null,
+      "mergeCommit": null,
+      "comments": [
+        {
+          "author": "LPardue",
+          "authorAssociation": "COLLABORATOR",
+          "body": "reading this in isolation, I'm a but unsure what the \"effectiveness of DPLPMTUD\" is supposed to mean.\r\n\r\nIs there something implied here about how the intermediary will pack DATAGRAM frames into QUIC packets? For instance, is it being suggested that to make this work, we really need the intermediary not to pack out the size with other things?",
+          "createdAt": "2021-07-14T16:04:39Z",
+          "updatedAt": "2021-07-14T16:04:39Z"
+        },
+        {
+          "author": "DavidSchinazi",
+          "authorAssociation": "COLLABORATOR",
+          "body": "The intent was to enable \"end-to-end application DPLPMTUD\" though I couldn't come up with a clear and concise name for it - in other words, there will be an application protocol that is running over HTTP Datagrams, and this is about the endpoints of that application performing DPLPMTUD at their layer. Does that make sense? If so, do you have thoughts on how best to word that?",
+          "createdAt": "2021-07-14T16:15:13Z",
+          "updatedAt": "2021-07-14T16:15:13Z"
+        },
+        {
+          "author": "bemasc",
+          "authorAssociation": "NONE",
+          "body": "> Is there something implied here about how the intermediary will pack DATAGRAM frames into QUIC packets?\r\n\r\nThe implication here is that the intermediary (1) knows a lower bound on the QUIC MTU and (2) never adds frames to a packet that is already larger than this bound (if it allows such packets at all).  I believe this is always true for QUIC, although I'm not sure it's stated explicitly anywhere.",
+          "createdAt": "2021-07-14T16:25:59Z",
+          "updatedAt": "2021-07-14T16:25:59Z"
+        },
+        {
+          "author": "DavidSchinazi",
+          "authorAssociation": "COLLABORATOR",
+          "body": "@bemasc can you clarify what you meant by \"a lower bound on the QUIC MTU\" ? The MTU can change dynamically due to changes outside of QUIC's control so the only real lower bound is 1200 - and we need to be able to send packets larger than that.",
+          "createdAt": "2021-07-14T16:35:19Z",
+          "updatedAt": "2021-07-14T16:35:19Z"
+        },
+        {
+          "author": "bemasc",
+          "authorAssociation": "NONE",
+          "body": "I mean that, at any given time, a QUIC endpoint has a lower bound L on the estimated path MTU.  This lower bound is sometimes wrong, but it's never zero.  If an H3 DATAGRAM produces a QUIC packet that is larger than L, we just need to be sure that QUIC won't add other frames to this packet.  (I don't know if QUIC will send this packet or just drop the datagram, but either way, DPLPMTUD on the inner connection will work fine.)",
+          "createdAt": "2021-07-14T16:46:28Z",
+          "updatedAt": "2021-07-14T16:46:28Z"
+        },
+        {
+          "author": "LPardue",
+          "authorAssociation": "COLLABORATOR",
+          "body": "The `SHOULD NOT` in the PR sounds fine. I'm still confused by the justification though, even after these comments.\r\n\r\n```\r\n           hop 1              hop 2                 hop 3\r\nClient  -->   Intermediary A  -->   Intermediary B  --> Target\r\n```\r\n\r\nFor hop2, which is QUIC, it must have a minimum PMTU of 1200. The maximum PMTU could be bigger. The maximum QUIC packet size that can be sent should be the min(max MTU, max_udp_payload_size advertised by peer). After the intermediary gets the H3 DATAGRAM payload, it will need to reencode it. We're suggesting into a QUIC DATAGRAM frame, with H3 DATAGRAM headers. This reencoding could have different overhead sizes (hop2 might have larger QUIC packet overheads, or H3 DATAGRAM overheads.\r\n\r\nIs the suggestion that the intermediary is using a PMTU size P1, and if it sees a H3 DATAGRAM that would produce a packet larger that P1, it should try to send it as a sort of probe? \r\n ",
+          "createdAt": "2021-07-14T17:44:20Z",
+          "updatedAt": "2021-07-14T17:44:50Z"
+        },
+        {
+          "author": "bemasc",
+          "authorAssociation": "NONE",
+          "body": "> This reencoding could have different overhead sizes (hop2 might have larger QUIC packet overheads, or H3 DATAGRAM overheads.\r\n\r\nThat's fine, so long as the overhead of each hop rarely changes.\r\n\r\n> Is the suggestion that the intermediary is using a PMTU size P1, and if it sees a H3 DATAGRAM that would produce a packet larger that P1, it should try to send it as a sort of probe?\r\n\r\nIt could try to send it, or it could drop it.  (It's not much of a \"probe\", since the intermediary won't necessarily know if it was dropped.)  Either way, the end-to-end DPLPMTUD will converge to some working value, which is all that matters.",
+          "createdAt": "2021-07-14T17:48:08Z",
+          "updatedAt": "2021-07-14T17:48:08Z"
+        },
+        {
+          "author": "LPardue",
+          "authorAssociation": "COLLABORATOR",
+          "body": "So, can we remove this statement wrt to DPLPMTUD? I don't know what I'm supposed to apply it to.",
+          "createdAt": "2021-07-14T17:52:16Z",
+          "updatedAt": "2021-07-14T17:52:16Z"
+        },
+        {
+          "author": "DavidSchinazi",
+          "authorAssociation": "COLLABORATOR",
+          "body": "I'm OK removing it, but in general I think it would be helpful to have the draft explain why that SHOULD NOT is there. And the motivation is to allow e2e DPLPMTUD. Because if the intermediary reencodes as capsules some of the time, the application-endpoints won't be able to get a sense for what packet sizes get through or not.",
+          "createdAt": "2021-07-14T20:08:32Z",
+          "updatedAt": "2021-07-14T20:08:32Z"
+        },
+        {
+          "author": "LPardue",
+          "authorAssociation": "COLLABORATOR",
+          "body": "What you just said is much clearer than the proposed text. \r\n\r\nLonger term, I think what we'll probably end up with is a whole section that collects intermediary concerns. But until we arrive at that point, a better way to present the matter at hand could be something like the following, which is intended to follow on the theme of discussion from the paragraphs in that section.\r\n\r\n\"Intermediaries that receive HTTP Datagrams in QUIC DATAGRAM frames need to decide how to forward them. If the onward connection supports QUIC DATAGRAM frames, intermediaries SHOULD attempt to forward HTTP Datagrams in a QUIC frame. If the HTTP Datagram is too large to fit in a QUIC frame, the intermediary SHOULD drop it. This preserves the end-to-end unreliability characteristic that methods such as DPLPMTUD depend on. An intermediary that forwards HTTP Datagrams in DATAGRAM capsules allows HTTP Datagrams to be arbitrarily large. This can misrepresent the true path properties, defeating methods such a DPLPMTUD.\"\r\n\r\n\r\n\r\n",
+          "createdAt": "2021-07-15T00:06:56Z",
+          "updatedAt": "2021-07-15T00:06:56Z"
+        },
+        {
+          "author": "DavidSchinazi",
+          "authorAssociation": "COLLABORATOR",
+          "body": "I like that, @LPardue. I've updated the text based on your comment, let me know what you think.",
+          "createdAt": "2021-07-15T00:20:10Z",
+          "updatedAt": "2021-07-15T00:20:10Z"
+        }
+      ],
+      "reviews": [
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NzA2ODIzMTEy",
+          "commit": {
+            "abbreviatedOid": "77d6ec4"
+          },
+          "author": "LPardue",
+          "authorAssociation": "COLLABORATOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-07-15T00:31:03Z",
+          "updatedAt": "2021-07-15T00:31:03Z",
+          "comments": [
+            {
+              "originalPosition": 7,
+              "body": "Can we avoid using MTU here? https://www.rfc-editor.org/rfc/rfc9000.html#section-14 is relevant, unfortunately it calls it \"Datagram size\" which is a world of hurt. But the important thing is that the forwarding is limited by the peer just as much as the path. \r\n\r\n> Enforcement of the max_udp_payload_size transport parameter (Section 18.2) might act as an additional limit on the maximum datagram size.\r\n\r\nWould \"maximum UDP payload size (Section 18.2; RFC 9000)\" work as a replacement.",
+              "createdAt": "2021-07-15T00:31:03Z",
+              "updatedAt": "2021-07-15T00:31:23Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NzA2ODI4Mzkw",
+          "commit": {
+            "abbreviatedOid": "77d6ec4"
+          },
+          "author": "DavidSchinazi",
+          "authorAssociation": "COLLABORATOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-07-15T00:47:25Z",
+          "updatedAt": "2021-07-15T00:47:25Z",
+          "comments": [
+            {
+              "originalPosition": 7,
+              "body": "Can you clarify why would we want to avoid using MTU?",
+              "createdAt": "2021-07-15T00:47:25Z",
+              "updatedAt": "2021-07-15T00:47:25Z"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "number": 70,
+      "id": "MDExOlB1bGxSZXF1ZXN0NjkwMDQ3MjYw",
+      "title": "Specify how to support multiple drafts",
+      "url": "https://github.com/ietf-wg-masque/draft-ietf-masque-h3-datagram/pull/70",
+      "state": "MERGED",
+      "author": "DavidSchinazi",
+      "authorAssociation": "COLLABORATOR",
+      "assignees": [],
+      "labels": [],
+      "body": "This will help interop efforts before publication.",
+      "createdAt": "2021-07-14T16:12:02Z",
+      "updatedAt": "2021-07-14T21:23:51Z",
+      "baseRepository": "ietf-wg-masque/draft-ietf-masque-h3-datagram",
+      "baseRefName": "main",
+      "baseRefOid": "bfd4d8fea782e7ec879c07b29635233ee9ff1faa",
+      "headRepository": "ietf-wg-masque/draft-ietf-masque-h3-datagram",
+      "headRefName": "drafts",
+      "headRefOid": "7ce765111d68ebba7288a24550a40a69fbcc511c",
+      "closedAt": "2021-07-14T21:23:51Z",
+      "mergedAt": "2021-07-14T21:23:51Z",
+      "mergedBy": "DavidSchinazi",
+      "mergeCommit": {
+        "oid": "a682a0ff73eb7ed867a090ce255c3910af2eb7f3"
+      },
+      "comments": [],
+      "reviews": [
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NzA2NDg0Nzk0",
+          "commit": {
+            "abbreviatedOid": "224e51d"
+          },
+          "author": "LPardue",
+          "authorAssociation": "COLLABORATOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-07-14T16:28:50Z",
+          "updatedAt": "2021-07-14T16:28:50Z",
+          "comments": [
+            {
+              "originalPosition": 15,
+              "body": "This is a good change.\r\n\r\nOne thought, since `H3_DATAGRAM` is just a logical identifier we could have encoded the draft version into it and made it easier to talk about. But I think that ship has probably sailed.",
+              "createdAt": "2021-07-14T16:28:50Z",
+              "updatedAt": "2021-07-14T16:28:50Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NzA2NDg5MDQx",
+          "commit": {
+            "abbreviatedOid": "224e51d"
+          },
+          "author": "DavidSchinazi",
+          "authorAssociation": "COLLABORATOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-07-14T16:33:12Z",
+          "updatedAt": "2021-07-14T16:33:12Z",
+          "comments": [
+            {
+              "originalPosition": 15,
+              "body": "Agreed. That's what I plan on doing in our code. I think using `H3_DATAGRAM` in the draft and when it's ambiguous in email or code using `H3_DATAGRAM-03` seems fine.",
+              "createdAt": "2021-07-14T16:33:12Z",
+              "updatedAt": "2021-07-14T16:33:12Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NzA2NDkzOTg0",
+          "commit": {
+            "abbreviatedOid": "224e51d"
+          },
+          "author": "LPardue",
+          "authorAssociation": "COLLABORATOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-07-14T16:38:28Z",
+          "updatedAt": "2021-07-14T16:38:28Z",
+          "comments": [
+            {
+              "originalPosition": 12,
+              "body": "this is a _little_ lose. I'm likely to write an implementation that supports both but would provide an option to let people run a client or server instance that supports a) supports multiple version b) only one version. This is important if I want to force testing of a newer version without falling back to an older one. \r\n\r\nFor a suggested rewording:\r\n```suggestion\r\nincompatible changes. Multiple draft versions MAY be supported by either\r\nendpoint in a connection. Such endpoints must MUST send multiple values for\r\nH3_DATAGRAM. Once an endpoint has sent and received SETTINGS, it MUST compute\r\n```",
+              "createdAt": "2021-07-14T16:38:28Z",
+              "updatedAt": "2021-07-14T16:38:28Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NzA2NDk5MzQy",
+          "commit": {
+            "abbreviatedOid": "224e51d"
+          },
+          "author": "LPardue",
+          "authorAssociation": "COLLABORATOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-07-14T16:44:13Z",
+          "updatedAt": "2021-07-14T16:44:13Z",
+          "comments": [
+            {
+              "originalPosition": 14,
+              "body": "Do we want to say anything about when the intersection is empty? Perhaps it's useful to close the connection with a specific error code like \"H3_DATAGRAM_REQUIRED\" or something. The receiving endpoint can then use that to see if it is due to mismatched sets, or that the peer was hoping for datagrams where they'll never be supported.",
+              "createdAt": "2021-07-14T16:44:13Z",
+              "updatedAt": "2021-07-14T16:44:14Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NzA2NDk5ODQy",
+          "commit": {
+            "abbreviatedOid": "224e51d"
+          },
+          "author": "LPardue",
+          "authorAssociation": "COLLABORATOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-07-14T16:44:45Z",
+          "updatedAt": "2021-07-14T16:44:45Z",
+          "comments": [
+            {
+              "originalPosition": 15,
+              "body": "WFM",
+              "createdAt": "2021-07-14T16:44:45Z",
+              "updatedAt": "2021-07-14T16:44:45Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NzA2NjY5OTAy",
+          "commit": {
+            "abbreviatedOid": "7ce7651"
+          },
+          "author": "DavidSchinazi",
+          "authorAssociation": "COLLABORATOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-07-14T20:03:39Z",
+          "updatedAt": "2021-07-14T20:03:39Z",
+          "comments": [
+            {
+              "originalPosition": 12,
+              "body": "Merged without the \"must MUST\"",
+              "createdAt": "2021-07-14T20:03:39Z",
+              "updatedAt": "2021-07-14T20:03:39Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NzA2NjcxMDQx",
+          "commit": {
+            "abbreviatedOid": "7ce7651"
+          },
+          "author": "DavidSchinazi",
+          "authorAssociation": "COLLABORATOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-07-14T20:05:06Z",
+          "updatedAt": "2021-07-14T20:05:06Z",
+          "comments": [
+            {
+              "originalPosition": 14,
+              "body": "I think that degrades easily to the case where the peer doesn't support datagram? Adding that error sounds reasonable, but is orthogonal to the multiple drafts question. Maybe file an issue and we can bring it up at 111?",
+              "createdAt": "2021-07-14T20:05:06Z",
+              "updatedAt": "2021-07-14T20:05:06Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NzA2NzA5ODk4",
+          "commit": {
+            "abbreviatedOid": "7ce7651"
+          },
+          "author": "LPardue",
+          "authorAssociation": "COLLABORATOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-07-14T20:52:41Z",
+          "updatedAt": "2021-07-14T20:52:41Z",
+          "comments": [
+            {
+              "originalPosition": 14,
+              "body": "I'm happy to punt a special close code to a new issue but I think we need to fix this text up a bit more. The more i think about it, the more I'm unsure what the intent is.\r\n\r\nSection 6 doesn't do a brilliant job of stating if both ends have to send a setting with value 1 in order for H3 Datagram to function or not. Theoretically, you could use true QUIC datagrams in one direction and datagram capsules in another (I'm not vouching to actually do that fwiw).\r\n\r\nExtending to this PR, all one way to interpret this is that only the versions have to intersect. Not the values (0 or 1). It's implied that an endpoint advertises support with 1. But if I send you \"old 0\" and \"new 1\" and you send \"old 1\" then interop might fail because we agreed on a version but not how to use it.",
+              "createdAt": "2021-07-14T20:52:41Z",
+              "updatedAt": "2021-07-14T20:52:41Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NzA2NzMzMzMw",
+          "commit": {
+            "abbreviatedOid": "7ce7651"
+          },
+          "author": "DavidSchinazi",
+          "authorAssociation": "COLLABORATOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-07-14T21:23:47Z",
+          "updatedAt": "2021-07-14T21:23:48Z",
+          "comments": [
+            {
+              "originalPosition": 14,
+              "body": "Discussed offline, let's merge this and have a follow up to clean up the exact semantics of the setting",
+              "createdAt": "2021-07-14T21:23:47Z",
+              "updatedAt": "2021-07-14T21:23:48Z"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "number": 71,
+      "id": "MDExOlB1bGxSZXF1ZXN0NjkwMjM4MzQ1",
+      "title": "Clarify meaning of setting",
+      "url": "https://github.com/ietf-wg-masque/draft-ietf-masque-h3-datagram/pull/71",
+      "state": "MERGED",
+      "author": "DavidSchinazi",
+      "authorAssociation": "COLLABORATOR",
+      "assignees": [],
+      "labels": [],
+      "body": "",
+      "createdAt": "2021-07-14T21:31:03Z",
+      "updatedAt": "2021-07-14T21:42:19Z",
+      "baseRepository": "ietf-wg-masque/draft-ietf-masque-h3-datagram",
+      "baseRefName": "main",
+      "baseRefOid": "a682a0ff73eb7ed867a090ce255c3910af2eb7f3",
+      "headRepository": "ietf-wg-masque/draft-ietf-masque-h3-datagram",
+      "headRefName": "setting",
+      "headRefOid": "7b1c46c82ebae4716850602711ecb73ca968c5de",
+      "closedAt": "2021-07-14T21:42:18Z",
+      "mergedAt": "2021-07-14T21:42:18Z",
+      "mergedBy": "DavidSchinazi",
+      "mergeCommit": {
+        "oid": "8ec257e7ae875b633603d11b68473d020c50d3dc"
+      },
+      "comments": [],
+      "reviews": [
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NzA2NzQxMTkw",
+          "commit": {
+            "abbreviatedOid": "7b1c46c"
+          },
+          "author": "LPardue",
+          "authorAssociation": "COLLABORATOR",
+          "state": "APPROVED",
+          "body": "",
+          "createdAt": "2021-07-14T21:35:19Z",
+          "updatedAt": "2021-07-14T21:35:19Z",
           "comments": []
         }
       ]

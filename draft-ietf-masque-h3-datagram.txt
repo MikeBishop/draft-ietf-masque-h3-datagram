@@ -5,8 +5,8 @@
 MASQUE                                                       D. Schinazi
 Internet-Draft                                                Google LLC
 Intended status: Standards Track                               L. Pardue
-Expires: 15 January 2022                                      Cloudflare
-                                                            14 July 2021
+Expires: 16 January 2022                                      Cloudflare
+                                                            15 July 2021
 
 
                        Using Datagrams with HTTP
@@ -51,7 +51,7 @@ Status of This Memo
    time.  It is inappropriate to use Internet-Drafts as reference
    material or to cite them other than as "work in progress."
 
-   This Internet-Draft will expire on 15 January 2022.
+   This Internet-Draft will expire on 16 January 2022.
 
 Copyright Notice
 
@@ -94,7 +94,9 @@ Table of Contents
      10.3.  Capsule Types
      10.4.  Context Extension Types
      10.5.  Context Close Codes
-   11. Normative References
+   11. References
+     11.1.  Normative References
+     11.2.  Informative References
    Appendix A.  Examples
      A.1.  CONNECT-UDP
      A.2.  CONNECT-UDP with Timestamp Extension
@@ -530,6 +532,21 @@ Table of Contents
    applications have to always consider HTTP Datagrams to be unreliable,
    even if they were initially sent in a capsule.
 
+   If an intermediary receives an HTTP Datagram in a QUIC DATAGRAM frame
+   and is forwarding it on a connection that supports QUIC DATAGRAM
+   frames, the intermediary SHOULD NOT convert that HTTP Datagram to a
+   DATAGRAM capsule.  If the HTTP Datagram is too large to fit in a
+   DATAGRAM frame (for example because the path MTU of that QUIC
+   connection is too low or if the maximum UDP payload size advertised
+   on that connection is too low), the intermediary SHOULD drop the HTTP
+   Datagram instead of converting it to a DATAGRAM capsule.  This
+   preserves the end-to-end unreliability characteristic that methods
+   such as Datagram Packetization Layer Path MTU Discovery (DPLPMTUD)
+   depend on [RFC8899].  An intermediary that converts QUIC DATAGRAM
+   frames to DATAGRAM capsules allows HTTP Datagrams to be arbitrarily
+   large without suffering any loss; this can misrepresent the true path
+   properties, defeating methods such a DPLPMTUD.
+
 5.  Context Extensibility
 
    In order to facilitate extensibility of contexts, the
@@ -805,7 +822,9 @@ Table of Contents
    assigned by IANA and MUST NOT appear in the listing of assigned
    values.
 
-11.  Normative References
+11.  References
+
+11.1.  Normative References
 
    [DGRAM]    Pauly, T., Kinnear, E., and D. Schinazi, "An Unreliable
               Datagram Extension to QUIC", Work in Progress, Internet-
@@ -838,6 +857,14 @@ Table of Contents
    [RFC8174]  Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC
               2119 Key Words", BCP 14, RFC 8174, DOI 10.17487/RFC8174,
               May 2017, <https://datatracker.ietf.org/doc/html/rfc8174>.
+
+11.2.  Informative References
+
+   [RFC8899]  Fairhurst, G., Jones, T., Tüxen, M., Rüngeler, I., and T.
+              Völker, "Packetization Layer Path MTU Discovery for
+              Datagram Transports", RFC 8899, DOI 10.17487/RFC8899,
+              September 2020,
+              <https://datatracker.ietf.org/doc/html/rfc8899>.
 
 Appendix A.  Examples
 

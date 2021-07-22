@@ -1,6 +1,6 @@
 {
   "magic": "E!vIA5L86J2I",
-  "timestamp": "2021-07-20T01:06:47.361243+00:00",
+  "timestamp": "2021-07-22T01:04:09.497520+00:00",
   "repo": "ietf-wg-masque/draft-ietf-masque-h3-datagram",
   "labels": [
     {
@@ -1696,7 +1696,7 @@
       "labels": [],
       "body": "It appears that the current defined registration method is great when one have three formats and need three different context ID for the three different formats. It is not suitable if one end up in any combinatorial cases, like formats that combine different modules where one may suddenly have 128 potential different context IDs. Pre-registering all of them appears to create a significant overhead. We had some thoughts of actually carrying the DSCP + ECN values for an IP packet payload in the Context ID. That could require up to 256 Context IDs. And registering each value individually could be done, but ends up in a large number of registrations, likely with a Context Extension TLV that consumes additionally overhead. \r\n\r\nSo is there a need for mass registration of context IDs?",
       "createdAt": "2021-07-13T15:10:29Z",
-      "updatedAt": "2021-07-14T15:52:33Z",
+      "updatedAt": "2021-07-21T20:26:33Z",
       "closedAt": null,
       "comments": [
         {
@@ -1719,6 +1719,13 @@
           "body": "Thanks, that makes sense. Let's leave this open for some time to see if anyone has use cases or other thoughts.",
           "createdAt": "2021-07-14T15:52:33Z",
           "updatedAt": "2021-07-14T15:52:33Z"
+        },
+        {
+          "author": "MikeBishop",
+          "authorAssociation": "NONE",
+          "body": "From a parsing standpoint, the first thing you need to know is whether datagrams contain a context ID or not, so there's obviously value in context/no-context.\r\n\r\nNext, you need to be able to map a particular context to a purpose.  That _might_ be done with Context Extensions, in which case there's value in declaring them.  But it might also be done in HTTP headers, in which case the registration of a particular context before use might be unnecessary.  (Obviously you'll still need to register locally with your HTTP implementation which contexts you should receive the datagrams for once you read the headers.)\r\n\r\nContext Extensions feel more useful in declaring parameters for a particular purpose -- but if that's how they're used, I don't see the point of the global registry.  Each purpose is essentially defining a custom datagram protocol at that point and can define what the parameters in the Extensions mean for that purpose.",
+          "createdAt": "2021-07-21T20:26:32Z",
+          "updatedAt": "2021-07-21T20:26:32Z"
         }
       ]
     },
@@ -1743,6 +1750,219 @@
           "body": "To address one point, I had the expectation that the capsule types in this document would be base level and all implementations would support them. Maybe we have different expectations. \r\n\r\nTo address the more technical point, what would a merged capsule look like? In H3, we don't have a flags section for frames to signals similar but unique variants. The HTTP/3 PRIORITY_UPDATE frame in Extensible Priorities started by encoding optionality as a 1 byte field in the frame. Due to feed back we switched to using different frame code points, a bit like how QUIC DATAGRAMS also work. Since we already have two frame code points for context registration, it doesn't seem like we are too far off how other parts of the stack already do things.",
           "createdAt": "2021-07-14T02:55:14Z",
           "updatedAt": "2021-07-14T02:56:34Z"
+        }
+      ]
+    },
+    {
+      "number": 73,
+      "id": "MDU6SXNzdWU5NDgxNzE0ODI=",
+      "title": "Make Capsule Frame before Headers an H3_FRAME_UNEXPECTED connection error",
+      "url": "https://github.com/ietf-wg-masque/draft-ietf-masque-h3-datagram/issues/73",
+      "state": "OPEN",
+      "author": "lnicco",
+      "authorAssociation": "NONE",
+      "assignees": [
+        "LPardue"
+      ],
+      "labels": [],
+      "body": "The HTTP/3 RFC states \r\n> Receipt of an invalid sequence of frames MUST be treated \r\n> as a connection error of type H3_FRAME_UNEXPECTED;\r\n\r\nThe current draft instead recommends closing the stream rather than the connection and with the generic H3_GENERAL_PROTOCOL_ERROR\r\n\r\nAccording to https://datatracker.ietf.org/doc/html/draft-ietf-quic-http-34#section-8.1 H3_GENERAL_PROTOCOL_ERROR is to be used when a more specific error code isn't available, but here we have clearly a more specific error available.\r\n\r\nAlso, what is the rationale for closing just the stream and not the whole connection?\r\n\r\nFurthermore, a more general question:\r\nright now the above recommendation only exists for REGISTER_DATAGRAM_NO_CONTEXT and REGISTER_DATAGRAM_CONTEXT capsule types. Would it be fair to say that no Capsule frame is allowed before headers instead?",
+      "createdAt": "2021-07-20T01:55:33Z",
+      "updatedAt": "2021-07-21T11:02:25Z",
+      "closedAt": null,
+      "comments": [
+        {
+          "author": "LPardue",
+          "authorAssociation": "COLLABORATOR",
+          "body": "Thanks.\r\n\r\nI think it would be for us to clarify\r\n\r\na) strict ordering rules of capsule amongst HTTP message frames.\r\nb) strict ordering rules of capsule types.\r\n\r\nFor (a), I'm inclined to state a top-level requirement that CAPSULE frames MUST NOT arrive before the first HEADERS on a request stream. Violation of that is connection error of type H3_FRAME_UNEXPECTED. \r\n\r\nFor (b), I'm slightly less sure. We clearly have some ordering requirements. The H3 base spec treats misordering as a critical failure. We treat it here as a stream error. I think we could make things more similar to H3. For instance, I can't think of a good reason right now why we are so loose with handling of datagram capsules; if they arrive on a stream before a register capsule, that smells broken. ",
+          "createdAt": "2021-07-20T05:32:54Z",
+          "updatedAt": "2021-07-20T05:32:54Z"
+        },
+        {
+          "author": "DavidSchinazi",
+          "authorAssociation": "COLLABORATOR",
+          "body": "Banning all capsules before headers sounds reasonable to me.\r\n\r\nStrict ordering of capsules is required on the sender, but enforcing that on the receiver isn't always easy so I don't think we can mandate it.\r\n\r\nI honestly don't care if it's a stream or connection error, either works for me.",
+          "createdAt": "2021-07-20T18:39:07Z",
+          "updatedAt": "2021-07-20T18:39:07Z"
+        },
+        {
+          "author": "LPardue",
+          "authorAssociation": "COLLABORATOR",
+          "body": "Happy to write the PR for this. Right now I'm thinking we cam make (b) a more specific error code too. I think H3_FRAME_UNEXPECTED is good enough for capsule types but we could always define a H3_CAPSULE _UNEXPECTED is people felt strongly.",
+          "createdAt": "2021-07-20T18:42:49Z",
+          "updatedAt": "2021-07-20T18:42:49Z"
+        },
+        {
+          "author": "DavidSchinazi",
+          "authorAssociation": "COLLABORATOR",
+          "body": "Do you have an example of where (b) is useful? In other words, what's a sequence of events that leads a receiver to detect a capsule illegal ordering?",
+          "createdAt": "2021-07-20T18:46:49Z",
+          "updatedAt": "2021-07-20T18:46:49Z"
+        },
+        {
+          "author": "LPardue",
+          "authorAssociation": "COLLABORATOR",
+          "body": "The following sequence is legal by (a) but illegal by (b)\r\n\r\n1. Client HEADERS\r\n1. Server HEADERS, \r\n1. Server CAPSULE (register_datagram_context)\r\n\r\nSo is this sequence\r\n\r\n1. Client HEADERS\r\n1. Client CAPSULE (register_datagram_no_context)\r\n1. Client CAPSULE (register_datagram_no_context)\r\n\r\nFrom what the spec says, I'm less clear on if this sequence is illegal\r\n\r\n1. Client HEADERS\r\n1. Client CAPSULE (datagram)\r\n1. Client CAPSULE (register_datagram_no_context)\r\n\r\nThere's a lot of text about DATAGRAM frames and ordering. But when sending Datagram capsules on streams, they can be strictly ordered on sender and receiver. H3 treats such ordering as specific problem because it is avoidable.\r\n\r\n\r\n\r\n",
+          "createdAt": "2021-07-20T19:02:31Z",
+          "updatedAt": "2021-07-20T19:02:31Z"
+        },
+        {
+          "author": "afrind",
+          "authorAssociation": "NONE",
+          "body": "That last sequence probably can't be illegal, since it is possible when forwarding through an intermediary with and without datagram support.  Eg: Client <-> Intermediary supports native datagram and Intermediary <-> Server only supports datagram CAPSULE.  Since the intermediary only needs to forward and not inspect, the datagram CAPSULE can arrive before the register_datagram_no_context CAPSULE.",
+          "createdAt": "2021-07-20T19:56:19Z",
+          "updatedAt": "2021-07-20T19:56:19Z"
+        },
+        {
+          "author": "LPardue",
+          "authorAssociation": "COLLABORATOR",
+          "body": "That's what I thought initially, but the spec presently says\r\n\r\n> due to reordering, an endpoint that receives a DATAGRAM frame before receiving either a REGISTER_DATAGRAM_CONTEXT capsule or a REGISTER_DATAGRAM_NO_CONTEXT capsule MUST NOT treat it as an error, it SHALL instead drop the DATAGRAM frame silently, or buffer it temporarily while awaiting a REGISTER_DATAGRAM_NO_CONTEXT capsule or the corresponding REGISTER_DATAGRAM_CONTEXT capsule\r\n\r\nBy my read, an intermediary that receives a DATAGRAM frame and wants to convert it to a capsule needs to wait for the register capsule. ",
+          "createdAt": "2021-07-20T21:37:37Z",
+          "updatedAt": "2021-07-20T21:37:37Z"
+        },
+        {
+          "author": "afrind",
+          "authorAssociation": "NONE",
+          "body": "The spec doesn't define endpoint.  Is an intermediary an endpoint?",
+          "createdAt": "2021-07-20T21:57:39Z",
+          "updatedAt": "2021-07-20T21:57:39Z"
+        },
+        {
+          "author": "LPardue",
+          "authorAssociation": "COLLABORATOR",
+          "body": "Need to nail that down. Having different sending rules for clients and \"intermediary doing client behaviour\" is a recipe for illness, the server can't know what the sender thinks it is.",
+          "createdAt": "2021-07-20T22:22:09Z",
+          "updatedAt": "2021-07-20T22:22:09Z"
+        },
+        {
+          "author": "DavidSchinazi",
+          "authorAssociation": "COLLABORATOR",
+          "body": "An endpoint is the opposite of an intermediary. If that's not obvious then we should spell it out in the draft. Intermediaries do not parse register capsules.",
+          "createdAt": "2021-07-20T22:25:07Z",
+          "updatedAt": "2021-07-20T22:25:07Z"
+        },
+        {
+          "author": "LPardue",
+          "authorAssociation": "COLLABORATOR",
+          "body": "I think the parsing stuff is clear. What's a bit unclear is the message forwarding requirements. The HTTP definition [1] of intermediary allows some variance. In the gateway case, it's stated that\r\n\r\n>  an HTTP-to-HTTP gateway that wishes to interoperate with\r\n   third-party HTTP servers needs to conform to user agent requirements\r\n   on the gateway's inbound connection.\r\n\r\nAllowing deviation is permitted but might cause interop problems.\r\n\r\n[1] - https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-semantics-16#section-3.7",
+          "createdAt": "2021-07-20T22:43:22Z",
+          "updatedAt": "2021-07-20T22:43:22Z"
+        },
+        {
+          "author": "DavidSchinazi",
+          "authorAssociation": "COLLABORATOR",
+          "body": "I'm not sure what you're suggesting in terms of changes to the draft @LPardue, could you elaborate?",
+          "createdAt": "2021-07-20T23:07:41Z",
+          "updatedAt": "2021-07-20T23:07:41Z"
+        },
+        {
+          "author": "LPardue",
+          "authorAssociation": "COLLABORATOR",
+          "body": "The specific suggestion in this case is, disallow intermediaries from sending datagram capsules before register capsules. This might make Alan sad because an intermediary would need to buffer DATAGRAM frames and only forward them as capsules once a register is seen. Note that it would not require the intermediary to act on the register capsule, just enforce sequencing rules between datagrams and streams ",
+          "createdAt": "2021-07-20T23:19:38Z",
+          "updatedAt": "2021-07-20T23:20:10Z"
+        },
+        {
+          "author": "DavidSchinazi",
+          "authorAssociation": "COLLABORATOR",
+          "body": "I'd rather we didn't add that suggestion. It increases complexity for intermediaries and I'm not sure what problem it solves?",
+          "createdAt": "2021-07-20T23:55:41Z",
+          "updatedAt": "2021-07-20T23:55:41Z"
+        },
+        {
+          "author": "LPardue",
+          "authorAssociation": "COLLABORATOR",
+          "body": "That's fine. I'd be happy with not adding that. However, to make it clear what the spec is allowing, we should make a note in Section 4.4 that the ordering/buffering requirements of DATGRAM frames and register capsules (from sec 3) do not apply to intermediaries when forwarding. That's tangential to Luca's OP so we can spin it off separately. ",
+          "createdAt": "2021-07-21T00:22:43Z",
+          "updatedAt": "2021-07-21T00:22:43Z"
+        },
+        {
+          "author": "DavidSchinazi",
+          "authorAssociation": "COLLABORATOR",
+          "body": "I agree, that sounds like a good resolution. Can you file an issue please?",
+          "createdAt": "2021-07-21T00:54:37Z",
+          "updatedAt": "2021-07-21T00:54:37Z"
+        }
+      ]
+    },
+    {
+      "number": 74,
+      "id": "MDU6SXNzdWU5NDkwMDE0MDk=",
+      "title": "Datagrams with Unidirectional Streams",
+      "url": "https://github.com/ietf-wg-masque/draft-ietf-masque-h3-datagram/issues/74",
+      "state": "OPEN",
+      "author": "MikeBishop",
+      "authorAssociation": "NONE",
+      "assignees": [],
+      "labels": [],
+      "body": "In #47, the conclusion was that server push didn't have a need to use datagrams, and I'm fine with that decision.  However, it's a subset of a larger question.\r\n\r\nI'm slightly concerned that using the \"quarter stream ID\" as the namespace forecloses the use of datagrams associated to anything except a request.  For example, we discussed during HTTP/3 development that it might be reasonable to shift certain control frames to datagrams if that had been an option in the protocol.\r\n\r\nI don't see that the quarter ID buys us anything beyond saving a byte or four in certain ranges of stream IDs, and it introduces an element in the protocol where we're presenting the Stream ID in a different format than every other instance.  It forecloses options that we might find a use for in the future, even if it's not required for CONNECT-UDP.\r\n\r\nWhy not simply use the stream ID, like everywhere else, and keep the same rules about the stream needing to be open for sending?  Where currently we say client, we could equally refer to stream initiators.",
+      "createdAt": "2021-07-20T19:30:11Z",
+      "updatedAt": "2021-07-20T21:21:39Z",
+      "closedAt": null,
+      "comments": [
+        {
+          "author": "DavidSchinazi",
+          "authorAssociation": "COLLABORATOR",
+          "body": "Do you have an example of a use case that would benefit from associating a datagram with a non-client-initiated-bidirectional-stream?\r\n\r\nI'll note that the quarter stream ID doesn't foreclose much because since these new use cases will require their own setting so we'll have the option of adjusting the encoding based on the presence of that setting",
+          "createdAt": "2021-07-20T21:21:39Z",
+          "updatedAt": "2021-07-20T21:21:39Z"
+        }
+      ]
+    },
+    {
+      "number": 75,
+      "id": "MDU6SXNzdWU5NDk1ODg0NDA=",
+      "title": "Note that the buffering requirements of DATGRAM frames do not apply to intermediaries",
+      "url": "https://github.com/ietf-wg-masque/draft-ietf-masque-h3-datagram/issues/75",
+      "state": "OPEN",
+      "author": "LPardue",
+      "authorAssociation": "COLLABORATOR",
+      "assignees": [
+        "LPardue"
+      ],
+      "labels": [],
+      "body": "...make it clear what the spec is allowing, we should make a note in Section 4.4 that the ordering/buffering requirements of DATGRAM frames and register capsules (from sec 3) do not apply to intermediaries when forwarding. That's tangential to Luca's OP so we can spin it off separately.\r\n\r\n_Originally posted by @LPardue in https://github.com/ietf-wg-masque/draft-ietf-masque-h3-datagram/issues/73#issuecomment-883791179_",
+      "createdAt": "2021-07-21T11:01:40Z",
+      "updatedAt": "2021-07-21T11:02:14Z",
+      "closedAt": null,
+      "comments": []
+    },
+    {
+      "number": 78,
+      "id": "MDU6SXNzdWU5NTAwNzMyOTA=",
+      "title": "Are context IDs \"negotiated\"?",
+      "url": "https://github.com/ietf-wg-masque/draft-ietf-masque-h3-datagram/issues/78",
+      "state": "OPEN",
+      "author": "MikeBishop",
+      "authorAssociation": "NONE",
+      "assignees": [],
+      "labels": [],
+      "body": "It doesn't appear that the peer has any say in the allocation of context IDs.  If not, they're not really \"negotiated.\"  Perhaps better to say that they are \"declared\" or merge with \"allocated.\"",
+      "createdAt": "2021-07-21T20:12:13Z",
+      "updatedAt": "2021-07-21T20:12:13Z",
+      "closedAt": null,
+      "comments": []
+    },
+    {
+      "number": 79,
+      "id": "MDU6SXNzdWU5NTAwODU3NDA=",
+      "title": "Walkthrough of intended use",
+      "url": "https://github.com/ietf-wg-masque/draft-ietf-masque-h3-datagram/issues/79",
+      "state": "OPEN",
+      "author": "MikeBishop",
+      "authorAssociation": "NONE",
+      "assignees": [],
+      "labels": [],
+      "body": "The document currently has a lot of tools, but there are different ways of thinking about how you could use them and why they're in the protocol.  I feel like readability would improve dramatically if the document started with an overview that described one or two hypothetical flows.\r\n\r\nNot fully fleshed out protocols -- just an example of declaring a context associated to a request, request headers that inform the context, context extensions that inform it, exchanging datagrams, and closing the context.  The document makes reference to a few possible applications; maybe one of these could be drawn a little bit larger?",
+      "createdAt": "2021-07-21T20:30:07Z",
+      "updatedAt": "2021-07-21T21:14:08Z",
+      "closedAt": null,
+      "comments": [
+        {
+          "author": "LPardue",
+          "authorAssociation": "COLLABORATOR",
+          "body": "For this request, what do you feel is missing from the examples in appendix A?\r\n\r\nThe reason I ask is that including those specific examples isn't great for the final version of this draft, the CONNECT-UDP spec is the canoncical source of the sequence and it depends on this document.\r\n\r\nIf there was a way to describe an example workflow in a more abstract sense, that addresses the gaps you're suggesting, then that would be a great candidate to keep in the document all the way through.",
+          "createdAt": "2021-07-21T21:14:08Z",
+          "updatedAt": "2021-07-21T21:14:08Z"
         }
       ]
     }
@@ -5519,6 +5739,94 @@
               "updatedAt": "2021-07-15T01:38:55Z"
             }
           ]
+        }
+      ]
+    },
+    {
+      "number": 76,
+      "id": "MDExOlB1bGxSZXF1ZXN0Njk0NDI3OTc2",
+      "title": "make CAPSULE frame ordering wrt HEADERS a global requirement",
+      "url": "https://github.com/ietf-wg-masque/draft-ietf-masque-h3-datagram/pull/76",
+      "state": "OPEN",
+      "author": "LPardue",
+      "authorAssociation": "COLLABORATOR",
+      "assignees": [],
+      "labels": [],
+      "body": "This makes the requirement global to clients, servers, and\r\nintermediaries.\r\n\r\ncloses #73 ",
+      "createdAt": "2021-07-21T14:30:13Z",
+      "updatedAt": "2021-07-21T23:40:54Z",
+      "baseRepository": "ietf-wg-masque/draft-ietf-masque-h3-datagram",
+      "baseRefName": "main",
+      "baseRefOid": "53cab196b6afed5bd9e950c84aa645d13868c0b4",
+      "headRepository": "ietf-wg-masque/draft-ietf-masque-h3-datagram",
+      "headRefName": "lucas/fix-73",
+      "headRefOid": "20a264e2579de5d596312c3ce463f9a42020305a",
+      "closedAt": null,
+      "mergedAt": null,
+      "mergedBy": null,
+      "mergeCommit": null,
+      "comments": [
+        {
+          "author": "LPardue",
+          "authorAssociation": "COLLABORATOR",
+          "body": "@lnicco does the PR address your issue?",
+          "createdAt": "2021-07-21T23:40:54Z",
+          "updatedAt": "2021-07-21T23:40:54Z"
+        }
+      ],
+      "reviews": [
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NzEyMjU5OTMz",
+          "commit": {
+            "abbreviatedOid": "20a264e"
+          },
+          "author": "DavidSchinazi",
+          "authorAssociation": "COLLABORATOR",
+          "state": "APPROVED",
+          "body": "",
+          "createdAt": "2021-07-21T23:08:09Z",
+          "updatedAt": "2021-07-21T23:08:09Z",
+          "comments": []
+        }
+      ]
+    },
+    {
+      "number": 77,
+      "id": "MDExOlB1bGxSZXF1ZXN0Njk0NDI4ODUw",
+      "title": "intermediaries do not have to buffer DATAGRAMs",
+      "url": "https://github.com/ietf-wg-masque/draft-ietf-masque-h3-datagram/pull/77",
+      "state": "OPEN",
+      "author": "LPardue",
+      "authorAssociation": "COLLABORATOR",
+      "assignees": [],
+      "labels": [],
+      "body": "closes #75 ",
+      "createdAt": "2021-07-21T14:30:50Z",
+      "updatedAt": "2021-07-21T22:59:36Z",
+      "baseRepository": "ietf-wg-masque/draft-ietf-masque-h3-datagram",
+      "baseRefName": "main",
+      "baseRefOid": "53cab196b6afed5bd9e950c84aa645d13868c0b4",
+      "headRepository": "ietf-wg-masque/draft-ietf-masque-h3-datagram",
+      "headRefName": "lucas/fix-75",
+      "headRefOid": "3af0ba91ee65057abdb09bcf6ee66b7b6e578fac",
+      "closedAt": null,
+      "mergedAt": null,
+      "mergedBy": null,
+      "mergeCommit": null,
+      "comments": [],
+      "reviews": [
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NzEyMjU2MjUz",
+          "commit": {
+            "abbreviatedOid": "3af0ba9"
+          },
+          "author": "DavidSchinazi",
+          "authorAssociation": "COLLABORATOR",
+          "state": "APPROVED",
+          "body": "",
+          "createdAt": "2021-07-21T22:59:36Z",
+          "updatedAt": "2021-07-21T22:59:36Z",
+          "comments": []
         }
       ]
     }
